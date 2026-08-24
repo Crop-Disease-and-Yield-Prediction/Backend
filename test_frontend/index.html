@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Crop Model Test</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: system-ui, sans-serif;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #eef4ec;
+        color: #203125;
+      }
+      main {
+        width: min(900px, calc(100% - 32px));
+        padding: 32px;
+        background: white;
+        border: 1px solid #d4e1d2;
+        border-radius: 14px;
+        box-shadow: 0 16px 40px #29452c18;
+      }
+      h1 {
+        margin-top: 0;
+        color: #1f5c35;
+      }
+      label {
+        display: block;
+        margin: 20px 0 8px;
+        font-weight: 650;
+      }
+      input,
+      button {
+        font: inherit;
+      }
+      input[type="file"] {
+        width: 100%;
+        padding: 12px 0;
+      }
+      button {
+        margin-top: 18px;
+        padding: 11px 18px;
+        border: 0;
+        border-radius: 8px;
+        background: #267342;
+        color: white;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: wait;
+      }
+      section {
+        margin-top: 28px;
+        padding-top: 20px;
+        border-top: 1px solid #d4e1d2;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0 18px;
+      }
+      .grid label {
+        margin-top: 12px;
+      }
+      input[type="text"],
+      input[type="number"] {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #b8cbb8;
+        border-radius: 6px;
+      }
+      @media (max-width: 650px) {
+        main {
+          padding: 22px;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      #preview {
+        display: none;
+        max-width: 260px;
+        max-height: 260px;
+        margin-top: 16px;
+        border-radius: 8px;
+        border: 1px solid #d4e1d2;
+      }
+      #status {
+        min-height: 24px;
+        margin-top: 20px;
+      }
+      pre {
+        overflow: auto;
+        padding: 16px;
+        background: #17221a;
+        color: #d9f2dc;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Crop Model Test</h1>
+      <p>
+        Test each model independently before connecting the production frontend.
+      </p>
+      <section>
+        <h2>Disease prediction</h2>
+        <form id="disease-form">
+          <label for="image">Crop image</label>
+          <input id="image" name="file" type="file" accept="image/*" required />
+          <img id="preview" alt="Selected crop image preview" />
+          <button id="submit" type="submit">Run disease prediction</button>
+        </form>
+        <div id="status" role="status"></div>
+        <pre id="result">Disease response will appear here.</pre>
+      </section>
+      <section>
+        <h2>Yield prediction</h2>
+        <form id="yield-form">
+          <div class="grid">
+            <label
+              >Crop <input name="Crop" type="text" value="Wheat" required
+            /></label>
+            <label
+              >Crop year
+              <input
+                name="Crop_Year"
+                type="number"
+                value="2020"
+                min="1997"
+                max="2020"
+                required
+            /></label>
+            <label
+              >Season <input name="Season" type="text" value="Rabi" required
+            /></label>
+            <label
+              >State <input name="State" type="text" value="Punjab" required
+            /></label>
+            <label
+              >Area (hectares)
+              <input
+                name="Area"
+                type="number"
+                value="100"
+                min="0.01"
+                step="any"
+                required
+            /></label>
+            <label
+              >Production (metric tons)
+              <input
+                name="Production"
+                type="number"
+                value="250"
+                min="0.01"
+                step="any"
+                required
+            /></label>
+            <label
+              >Annual rainfall (mm)
+              <input
+                name="Annual_Rainfall"
+                type="number"
+                value="700"
+                min="0"
+                step="any"
+                required
+            /></label>
+            <label
+              >Fertilizer (kg)
+              <input
+                name="Fertilizer"
+                type="number"
+                value="12000"
+                min="0"
+                step="any"
+                required
+            /></label>
+            <label
+              >Pesticide (kg)
+              <input
+                name="Pesticide"
+                type="number"
+                value="250"
+                min="0"
+                step="any"
+                required
+            /></label>
+          </div>
+          <button id="yield-submit" type="submit">Run yield prediction</button>
+        </form>
+        <div id="yield-status" role="status"></div>
+        <pre id="yield-result">Yield response will appear here.</pre>
+      </section>
+    </main>
+    <script>
+      const form = document.querySelector("#disease-form");
+      const image = document.querySelector("#image");
+      const preview = document.querySelector("#preview");
+      const button = document.querySelector("#submit");
+      const status = document.querySelector("#status");
+      const result = document.querySelector("#result");
+      const yieldForm = document.querySelector("#yield-form");
+      const yieldButton = document.querySelector("#yield-submit");
+      const yieldStatus = document.querySelector("#yield-status");
+      const yieldResult = document.querySelector("#yield-result");
+
+      image.addEventListener("change", () => {
+        const file = image.files[0];
+        if (file) {
+          preview.src = URL.createObjectURL(file);
+          preview.style.display = "block";
+        }
+      });
+
+      yieldForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const data = Object.fromEntries(new FormData(yieldForm));
+        ["Crop_Year"].forEach((key) => (data[key] = Number(data[key])));
+        [
+          "Area",
+          "Production",
+          "Annual_Rainfall",
+          "Fertilizer",
+          "Pesticide",
+        ].forEach((key) => (data[key] = Number(data[key])));
+        yieldButton.disabled = true;
+        yieldStatus.textContent = "Running yield model...";
+        try {
+          const response = await fetch("/predict-yield", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+          const payload = await response.json();
+          yieldResult.textContent = JSON.stringify(payload, null, 2);
+          yieldStatus.textContent = response.ok
+            ? "Yield prediction completed."
+            : `Request failed (${response.status}).`;
+        } catch (error) {
+          yieldStatus.textContent = "Could not connect to the backend.";
+          yieldResult.textContent = error.message;
+        } finally {
+          yieldButton.disabled = false;
+        }
+      });
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const file = image.files[0];
+        if (!file) return;
+        const data = new FormData();
+        data.append("file", file);
+        button.disabled = true;
+        status.textContent = "Running model...";
+        result.textContent = "";
+        try {
+          const response = await fetch("/predict", {
+            method: "POST",
+            body: data,
+          });
+          const payload = await response.json();
+          result.textContent = JSON.stringify(payload, null, 2);
+          status.textContent = response.ok
+            ? "Prediction completed."
+            : `Request failed (${response.status}).`;
+        } catch (error) {
+          status.textContent = "Could not connect to the backend.";
+          result.textContent = error.message;
+        } finally {
+          button.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
