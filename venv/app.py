@@ -6,7 +6,6 @@ import joblib
 import pandas as pd
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from PIL import Image
 import torchvision.transforms as transforms
@@ -16,7 +15,6 @@ app = FastAPI()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 MODELS_DIR = BASE_DIR / "models"
-FRONTEND_DIR = BASE_DIR / "test_frontend"
 
 # 1. ENABLE CORS
 app.add_middleware(
@@ -78,8 +76,6 @@ class YieldInput(BaseModel):
 @app.get("/")
 def home():
     return {"message": "Crop Project Backend is Running!"}
-
-app.mount("/test", StaticFiles(directory=FRONTEND_DIR, html=True), name="test-frontend")
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
