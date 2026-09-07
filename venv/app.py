@@ -4,12 +4,14 @@ from pathlib import Path
 import torch
 import joblib
 import pandas as pd
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from PIL import Image
 import torchvision.transforms as transforms
 from torchvision import models
+
+from cure_service import get_cure_advice
 
 app = FastAPI()
 
@@ -25,26 +27,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. THE OFFICIAL 38 CLASS MAPPING INDEX
-# This index acts as your translation dictionary between the index number and the disease text name.
+# 2. THE MODEL'S 42 CLASS MAPPING INDEX
+# Keep this order aligned with the class order used during model training.
 CLASS_NAMES = [
-    'Apple___Apple_scab', 'Apple___Black_rot', 'Apple___Cedar_apple_rust', 'Apple___healthy',
-    'Blueberry___healthy', 'Cherry___Powdery_mildew', 'Cherry___healthy',
-    'Corn___Common_rust', 'Corn___Gray_leaf_spot', 'Corn___Northern_Leaf_Blight', 'Corn___healthy',
-    'Grape___Black_rot', 'Grape___Esca_(Black_Measles)', 'Grape___Leaf_blight_(Isariopsis_Leaf_Spot)', 'Grape___healthy',
-    'Orange___Haunglongbing_(Citrus_greening)', 'Peach___Bacterial_spot', 'Peach___healthy',
-    'Pepper,_bell___Bacterial_spot', 'Pepper,_bell___healthy',
-    'Potato___Early_blight', 'Potato___Late_blight', 'Potato___healthy',
-    'Raspberry___healthy', 'Soybean___healthy', 'Squash___Powdery_mildew',
-    'Strawberry___Leaf_scorch', 'Strawberry___healthy',
-    'Tomato___Bacterial_spot', 'Tomato___Early_blight', 'Tomato___Late_blight', 'Tomato___Leaf_Mold',
-    'Tomato___Septoria_leaf_spot', 'Tomato___Spider_mites_Two-spotted_spider_mite', 'Tomato___Target_Spot',
-    'Tomato___Tomato_Yellow_Leaf_Curl_Virus', 'Tomato___Tomato_mosaic_virus', 'Tomato___healthy'
+    'American Bollworm on Cotton', 'Anthracnose on Cotton', 'Army worm',
+    'Becterial Blight in Rice', 'Brownspot', 'Common_Rust', 'Cotton Aphid',
+    'Flag Smut', 'Gray_Leaf_Spot', 'Healthy Maize', 'Healthy Wheat',
+    'Healthy cotton', 'Leaf Curl', 'Leaf smut', 'Mosaic sugarcane',
+    'RedRot sugarcane', 'RedRust sugarcane', 'Rice Blast', 'Sugarcane Healthy',
+    'Tungro', 'Wheat Brown leaf Rust', 'Wheat Stem fly', 'Wheat aphid',
+    'Wheat black rust', 'Wheat leaf blight', 'Wheat mite', 'Wheat powdery mildew',
+    'Wheat scab', 'Wheat___Yellow_Rust', 'Wilt', 'Yellow Rust Sugarcane',
+    'bacterial_blight in Cotton', 'bollrot on Cotton', 'bollworm on Cotton',
+    'cotton mealy bug', 'cotton whitefly', 'maize ear rot', 'maize fall armyworm',
+    'maize stem borer', 'pink bollworm in cotton', 'red cotton bug',
+    'thirps on  cotton'
 ]
 
 # 3. LOAD YOUR MODELS AT STARTUP
 disease_model = models.efficientnet_b0(weights=None)
-disease_model.classifier[1] = torch.nn.Linear(disease_model.classifier[1].in_features, 38)
+disease_model.classifier[1] = torch.nn.Linear(disease_model.classifier[1].in_features, 42)
 disease_model.load_state_dict(torch.load(
     MODELS_DIR / "efficientnet_realworld_robust.pth",
     map_location=torch.device("cpu"),
@@ -72,6 +74,10 @@ class YieldInput(BaseModel):
     Annual_Rainfall: float = Field(ge=0)
     Fertilizer: float = Field(ge=0)
     Pesticide: float = Field(ge=0)
+
+
+class CureInput(BaseModel):
+    disease: str = Field(min_length=2, max_length=200)
 
 @app.get("/")
 def home():
@@ -119,4 +125,21 @@ def predict_yield(payload: YieldInput):
         "status": "success",
         "predicted_yield": round(float(prediction), 4),
         "yield_formula_reference": "Production / Area",
+    }
+
+
+@app.post("/disease-cure")
+def disease_cure(payload: CureInput):
+    try:
+        advice = get_cure_advice(payload.disease.strip())
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+
+    return {
+        "status": "success",
+        "disease": payload.disease.strip(),
+        "summary": advice.summary,
+        "treatment_options": advice.treatment_options,
+        "prevention_steps": advice.prevention_steps,
+        "disclaimer": "This is general information, not a confirmed diagnosis. Follow product labels and local agricultural guidance.",
     }
